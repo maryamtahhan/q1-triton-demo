@@ -20,22 +20,18 @@ RUN /build/venv/bin/pip install --disable-pip-version-check --no-cache-dir torch
 # === Stage 2: Minimal runtime container ===
 FROM registry.access.redhat.com/ubi9/ubi-minimal
 
-# Install Python runtime and minimal dependencies
-RUN microdnf install -y python3.11 python3.11-devel gcc gcc-c++ make numactl-libs && microdnf clean all
+# Install only Python runtime and very basic system libraries
+RUN microdnf install -y python3.11 numactl-libs && microdnf clean all
 
-# Copy virtual environment from builder stage
+# Copy virtual environment from builder stage (you’d still use a separate builder stage to create it)
 COPY --from=builder /build/venv /opt/venv
 
-# ROCm & Triton environment variables
-ENV ROCM_PATH=/opt/rocm \
-    LD_LIBRARY_PATH=/usr/lib64:/usr/lib:/opt/rocm/lib:/opt/rocm/llvm/lib \
-    PATH=/opt/venv/bin:/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH \
-    ROCM_VERSION=6.2 \
-    PIP_PREFIX=/build/venv
+ENV PATH=/opt/venv/bin:$PATH \
+    ROCM_PATH=/rocm-runtime \
+    LD_LIBRARY_PATH=/rocm-runtime/lib:/rocm-runtime/llvm/lib:/usr/lib64:/usr/lib
 
 WORKDIR /workspace
 
-# Copy the GPU check and demo script
 COPY triton-gpu-check.py /workspace/
 COPY triton-vector-add-rocm.py /workspace/
 COPY entrypoint.sh /entrypoint.sh
