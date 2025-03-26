@@ -24,7 +24,7 @@ spec:
 
           microdnf install -y gcc gcc-c++ make cmake python3.11 python3.11-devel \
               amd-smi-lib amd-smi miopen-hip rocm-core rocm-hip-libraries \
-              rocminfo llvm clang lld numactl-libs && \
+              rocminfo llvm clang lld numactl-libs gcc gcc-c++ cmake make && \
           mkdir -p /rocm-runtime && \
           cp -a /opt/rocm /rocm-runtime/opt_rocm && \
           cp -a /usr/include/python3.11 /rocm-runtime/include_python3.11 && \

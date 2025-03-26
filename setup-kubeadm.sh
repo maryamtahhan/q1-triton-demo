@@ -28,9 +28,16 @@ create() {
     kubectl describe node
     kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
     kubectl describe node
+    echo "Cluster creation and configuration completed."
+}
+
+rocm() {
     kubectl create -f https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/k8s-ds-amdgpu-dp.yaml
     kubectl create -f https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/k8s-ds-amdgpu-labeller.yaml
-    echo "Cluster creation and configuration completed."
+}
+
+nvidia() {
+    kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.17.1/deployments/static/nvidia-device-plugin.yml
 }
 
 # Main execution
@@ -38,6 +45,10 @@ if [ "$1" == "cleanup" ]; then
     cleanup
 elif [ "$1" == "create" ]; then
     create
+elif [ "$1" == "rocm" ]; then
+    rocm
+elif [ "$1" == "cuda" ]; then
+    cuda
 else
     cleanup
     create
