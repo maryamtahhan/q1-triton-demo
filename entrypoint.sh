@@ -27,10 +27,6 @@ dnf install -y --nodocs --setopt=install_weak_deps=False \
 sleep 3
 rocm-smi --showproductname || echo "rocminfo command failed; ROCm driver may not be present."
 
-# Install wheels into system Python
-pip install --upgrade pip && pip install --no-cache-dir tabulate scipy numpy pyyaml ctypeslib2 matplotlib pandas && \
-    pip install --no-cache-dir torch==2.5.0 --index-url https://download.pytorch.org/whl/rocm6.2
-
 echo "HIP_VISIBLE_DEVICES=$HIP_VISIBLE_DEVICES"
 
 python /workspace/triton-gpu-check.py || echo "Triton GPU check failed. Possibly missing drivers or runtime libraries."

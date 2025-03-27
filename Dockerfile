@@ -29,6 +29,9 @@ ENV BASH_ENV=/workspace/bin/activate \
 
 WORKDIR /workspace
 
+RUN /workspace/bin/activate && pip install --upgrade pip && pip install --no-cache-dir tabulate scipy numpy pyyaml ctypeslib2 matplotlib pandas && \
+    pip install --no-cache-dir torch==2.5.0 --index-url https://download.pytorch.org/whl/rocm6.2
+
 COPY triton-gpu-check.py /workspace/
 COPY triton-vector-add.py /workspace/
 COPY entrypoint.sh /entrypoint.sh
