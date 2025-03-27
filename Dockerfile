@@ -1,40 +1,39 @@
-# === Stage 1: Build environment ===
-FROM registry.access.redhat.com/ubi9/ubi as builder
+FROM registry.access.redhat.com/ubi9/python-311
 
-# Install Python and build tools
-RUN dnf install -y python3.12 python3.12-devel && \
-    python3.11 -m ensurepip && \
-    python3.11 -m pip install --upgrade pip && \
-    dnf clean all
+USER 0
 
-WORKDIR /build
+# Set environment variables for ROCm
+ENV LC_ALL=C.UTF-8 \
+LANG=C.UTF-8 \
+ROCM_PATH=/opt/rocm \
+LD_LIBRARY_PATH=/usr/lib64:/usr/lib:/opt/rocm/lib:/opt/rocm/llvm/lib \
+PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
 
-# Download wheels for all required packages
-RUN mkdir /build/wheels && \
-    python3.11 -m pip download --no-deps --dest=/build/wheels torch --root-user-action=ignore && \
-    python3.11 -m pip download --dest=/build/wheels tabulate scipy numpy pyyaml ctypeslib2 matplotlib pandas --root-user-action=ignore
+# Create the /workspace directory and set permissions
+RUN mkdir -p /workspace && \
+    python -m venv /workspace && \
+    echo "unset BASH_ENV PROMPT_COMMAND ENV" >> /workspace/bin/activate && \
+    chmod -R 777 /workspace
 
-# === Stage 2: Minimal runtime container ===
-FROM registry.access.redhat.com/ubi9/ubi-minimal
-
-# Install minimal Python runtime
-RUN microdnf install -y python3.12 numactl-libs && microdnf clean all
-
-# Copy downloaded wheels from builder stage
-COPY --from=builder /build/wheels /wheels
-
-# Install wheels directly into system Python
-RUN python3.12 -m ensurepip && \
-    python3.12 -m pip install --no-cache-dir --find-links=/wheels torch tabulate scipy numpy pyyaml ctypeslib2 matplotlib pandas && \
-    rm -rf /wheels /root/.cache/pip
-
-ENV PYTHON_VERSION=3.12 \
-    PYTHONUNBUFFERED=1
+ENV BASH_ENV=/workspace/bin/activate \
+    ENV=/workspace/bin/activate \
+    PROMPT_COMMAND=". /workspace/bin/activate" \
+    PYTHON_VERSION=3.11 \
+    PATH=/workspace/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    PIP_PREFIX=/workspace \
+    PYTHONPATH=/workspace/lib/python$PYTHON_VERSION/site-packages \
+    XDG_CACHE_HOME=/workspace \
+    TRITON_CACHE_DIR=/workspace/.triton/cache \
+    TRITON_HOME=/workspace/
 
 WORKDIR /workspace
 
 COPY triton-gpu-check.py /workspace/
-COPY triton-vector-add-rocm.py /workspace/
+COPY triton-vector-add.py /workspace/
 COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
+
+# [ podman | docker ]  build -t quay.io/mtahhan/rocm-demo -f Dockerfile .

@@ -5,23 +5,17 @@ metadata:
   labels:
     purpose: demo-triton
 spec:
-  volumes:
-    - name: rocm-runtime
-      emptyDir: {}
-
   containers:
     - name: triton-container
       image: quay.io/mtahhan/rocm-demo:latest
       workingDir: /workspace
-      command: ["/bin/bash", "-c", "--"]
-      args: ["/entrypoint.sh; python3 /workspace/triton-vector-add-rocm.py"]
-      volumeMounts:
-        - mountPath: /rocm-runtime
-          name: rocm-runtime
+      env:
+        - name: HIP_VISIBLE_DEVICES
+          value: "0"
+      command: ["/bin/bash", "-c"]
+      args: ["/entrypoint.sh && python /workspace/triton-vector-add.py"]
+      securityContext:
+        privileged: true
       resources:
         limits:
-          nvidia.com/gpu: 1 # requesting 1 GPU
-  tolerations:
-  - key: nvidia.com/gpu
-    operator: Exists
-    effect: NoSchedule
+          amd.com/gpu: 1
