@@ -5,6 +5,7 @@ metadata:
   labels:
     purpose: demo-triton
 spec:
+  restartPolicy: Never  # <-- moved here!
   containers:
     - name: triton-container
       image: quay.io/mtahhan/rocm-demo:latest
@@ -13,7 +14,7 @@ spec:
         - name: HIP_VISIBLE_DEVICES
           value: "0"
       command: ["/bin/bash", "-c"]
-      args: ["/entrypoint.sh && python /workspace/triton-vector-add.py"]
+      args: ["/entrypoint.sh && python /workspace/triton-vector-add.py && tail -f /dev/null"]
       securityContext:
         privileged: true
       resources:
