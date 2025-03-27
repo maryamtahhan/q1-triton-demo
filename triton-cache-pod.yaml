@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: triton-cache-pod
+  labels:
+    purpose: demo-triton-cache
+spec:
+  restartPolicy: Never
+  volumes:
+    - name: triton-cache-volume
+      emptyDir: {}
+
+  initContainers:
+    - name: thunderbolt-init
+      image: quay.io/mtahhan/thunderbolt
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends \
+            wget gnupg2 ca-certificates curl lsb-release software-properties-common python3-setuptools python3-wheel
+
+          echo "Installing ROCm apt repo..."
+          wget https://repo.radeon.com/amdgpu-install/6.3.3/ubuntu/jammy/amdgpu-install_6.3.60303-1_all.deb
+          apt-get install -y ./amdgpu-install_6.3.60303-1_all.deb
+          amdgpu-install --usecase=rocm --no-dkms -y
+
+          echo "Running thunderbolt..."
+          /thunderbolt -e -i quay.io/mtahhan/vector-add-cache-rocm:38b5f06307aaf4b9fae88f5cffc7ee64f7aae9afa15c51bdea8f81981ead1aa0
+      env:
+        - name: TRITON_CACHE_DIR
+          value: "/workspace/.triton/cache"
+        - name: TRITON_HOME
+          value: "/workspace/"
+        - name: HIP_VISIBLE_DEVICES
+          value: "0"
+      volumeMounts:
+        - name: triton-cache-volume
+          mountPath: /workspace/.triton/cache
+      securityContext:
+        privileged: false
+        capabilities:
+          add:
+            - SYS_ADMIN
+        seccompProfile:
+          type: Unconfined
+      resources:
+        limits:
+          amd.com/gpu: 1
+
+  containers:
+    - name: triton-container
+      image: quay.io/mtahhan/rocm-demo:latest
+      workingDir: /workspace
+      env:
+        - name: HIP_VISIBLE_DEVICES
+          value: "0"
+      command: ["/bin/bash", "-c"]
+      args: ["/entrypoint.sh && python /workspace/triton-vector-add.py && tail -f /dev/null"]
+      securityContext:
+        privileged: true
+      resources:
+        limits:
+          amd.com/gpu: 1
+      volumeMounts:
+        - name: triton-cache-volume
+          mountPath: /workspace/.triton/cache
