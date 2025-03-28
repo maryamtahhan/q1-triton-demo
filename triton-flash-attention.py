@@ -555,12 +555,8 @@ def benchmark_flash_attention(seqlen, provider, batch, nheads, head_dim):
     perf = lambda ms: ops / (ms * 1e-3) / 1e12  # TFLOPS
     return perf(ms), perf(max_ms), perf(min_ms)
 
-# if __name__ == "__main__":
-#     benchmark_flash_attention.run(show_plots=False, print_data=True)
-
 # ------------------------------------------------------------
-# Flash Attention Autograd Wrapper from original Triton file
-# (Assumes 'triton_attention' is defined earlier in the script)
+# Measure startup time
 # ------------------------------------------------------------
 
 def prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64):
@@ -589,13 +585,13 @@ if __name__ == "__main__":
 
     print("\n=== Measuring Triton Flash Attention Kernel Startup Time ===")
 
-    # First run (JIT compile + launch)
+    # First run (Cold Start)
     start = time.time()
     run_flash_attention_once(*inputs)
     elapsed_cold = time.time() - start
     print(f"[Cold Start] Triton kernel first run took {elapsed_cold:.6f} seconds")
 
-    # Second run (Cached)
+    # Second run (Warm Start)
     start = time.time()
     run_flash_attention_once(*inputs)
     elapsed_cached = time.time() - start
