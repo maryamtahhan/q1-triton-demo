@@ -9,6 +9,9 @@ import torch
 import triton
 import triton.language as tl
 import time
+import shutil
+from pathlib import Path
+import os
 # ------------------------------------------------------------
 # Backend Detection Helpers
 # ------------------------------------------------------------
@@ -558,6 +561,24 @@ def benchmark_flash_attention(seqlen, provider, batch, nheads, head_dim):
 # ------------------------------------------------------------
 # Measure startup time
 # ------------------------------------------------------------
+def clear_triton_cache():
+    cache_path = os.environ.get("TRITON_CACHE_DIR")
+    if not cache_path:
+        cache_path = str(Path.home() / ".triton" / "cache")
+    
+    triton_dir = Path(cache_path)
+    
+    if triton_dir.exists() and triton_dir.is_dir():
+        try:
+            shutil.rmtree(triton_dir)
+            print(f"Successfully cleared Triton cache at: {triton_dir}")
+            return True
+        except Exception as e:
+            print(f"Failed to delete Triton cache: {str(e)}")
+            return False
+    else:
+        print(f"Triton cache directory not found: {triton_dir}")
+        return False
 
 def prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64):
     total_tokens = batch * seqlen
@@ -585,18 +606,25 @@ if __name__ == "__main__":
 
     print("\n=== Measuring Triton Flash Attention Kernel Startup Time ===")
 
-    # First run (Cold Start)
+    # First run (Cold Start), JIT warm-up
+    run_flash_attention_once(*inputs)
+    
+    # Clear Triton cache
+    clear_triton_cache()
+
+    # Second run (Cold-no-cache Start)
+    torch.cuda.synchronize()
     start = time.time()
     run_flash_attention_once(*inputs)
     elapsed_cold = time.time() - start
-    print(f"[Cold Start] Triton kernel first run took {elapsed_cold:.6f} seconds")
-
-    # Second run (Warm Start)
+    print(f"[Cold-no-cache Start] Triton kernel without cache  run took {elapsed_cold:.6f} seconds")
+    
+    # Third run (Warm-cache Start)
     start = time.time()
     run_flash_attention_once(*inputs)
+    torch.cuda.synchronize()
     elapsed_cached = time.time() - start
-    print(f"[Warm Start] Triton kernel cached run took {elapsed_cached:.6f} seconds")
+    print(f"[Warm-cache Start] Triton kernel cached run took {elapsed_cached:.6f} seconds")
 
     print(f"Speedup from caching: {elapsed_cold / elapsed_cached:.2f}x faster")
-
 
