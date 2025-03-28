@@ -26,7 +26,10 @@ spec:
           amdgpu-install --usecase=rocm --no-dkms -y
 
           echo "Running thunderbolt..."
-          /thunderbolt -e -i quay.io/mtahhan/vector-add-cache-rocm:38b5f06307aaf4b9fae88f5cffc7ee64f7aae9afa15c51bdea8f81981ead1aa0
+          /thunderbolt -e -i quay.io/mtahhan/flash-attention-rocm:latest
+
+          echo "Extracted cache in /workspace/.triton/cache..."
+          ls -al /workspace/.triton/cache
       env:
         - name: TRITON_CACHE_DIR
           value: "/workspace/.triton/cache"
@@ -34,6 +37,8 @@ spec:
           value: "/workspace/"
         - name: HIP_VISIBLE_DEVICES
           value: "0"
+        - name: HOME
+          value: "/workspace"
       volumeMounts:
         - name: triton-cache-volume
           mountPath: /workspace/.triton/cache
@@ -55,8 +60,14 @@ spec:
       env:
         - name: HIP_VISIBLE_DEVICES
           value: "0"
+        - name: HOME
+          value: "/workspace"
+        - name: TRITON_CACHE_DIR
+          value: "/workspace/.triton/cache"
+        - name: TRITON_HOME
+          value: "/workspace/"
       command: ["/bin/bash", "-c"]
-      args: ["/entrypoint.sh && python /workspace/triton-vector-add.py && tail -f /dev/null"]
+      args: ["/entrypoint.sh && ls -al /workspace/.triton/cache && python /workspace/triton-flash-attention.py && tail -f /dev/null"]
       securityContext:
         privileged: true
       resources:

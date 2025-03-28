@@ -34,6 +34,7 @@ RUN /workspace/bin/activate && pip install --upgrade pip && pip install --no-cac
 
 COPY triton-gpu-check.py /workspace/
 COPY triton-vector-add.py /workspace/
+COPY triton-flash-attention.py /workspace/
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

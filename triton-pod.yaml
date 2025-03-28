@@ -14,7 +14,7 @@ spec:
         - name: HIP_VISIBLE_DEVICES
           value: "0"
       command: ["/bin/bash", "-c"]
-      args: ["/entrypoint.sh && python /workspace/triton-vector-add.py && tail -f /dev/null"]
+      args: ["/entrypoint.sh && python /workspace/triton-flash-attention.py && tail -f /dev/null"]
       securityContext:
         privileged: true
       resources:
