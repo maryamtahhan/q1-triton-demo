@@ -545,25 +545,28 @@ def run_flash_attention_once(q, k, v, o, cu_seqlens_q, cu_seqlens_k, max_q, max_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.set_defaults(clear_cache=False)
+    parser.set_defaults(clear_cache=False, jit_warmup=False)
     parser.add_argument("--clear-cache", action="store_true", help="Clear the Triton JIT cache before running.")
+    parser.add_argument("--jit-warmup", action="store_true", help="Run a JIT warm-up before timing.")
+
     args = parser.parse_args()
 
     torch.manual_seed(42)
-    torch.randn(1, device='cuda')  # warm-up CUDA
+    torch.randn(1, device='cuda')  # warm-up CUDA context
 
     inputs = prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64)
 
-    # JIT warm-up
-    run_flash_attention_once(*inputs)
+    if args.jit_warmup:
+        print("Running JIT warm-up...")
+        run_flash_attention_once(*inputs)
 
     if args.clear_cache:
         clear_triton_cache()
 
     print("\n=== Measuring Triton Flash Attention Kernel Startup Time ===")
-
     start = time.time()
     run_flash_attention_once(*inputs)
     elapsed_first = time.time() - start
     print(f"[Measured Run] Triton kernel run took {elapsed_first:.6f} seconds")
+
 
