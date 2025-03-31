@@ -8,7 +8,12 @@ Based on https://github.com/vllm-project/vllm/blob/main/vllm/attention/ops/trito
 import torch
 import triton
 import triton.language as tl
+import os
+import shutil
+import argparse
+from pathlib import Path
 import time
+
 # ------------------------------------------------------------
 # Backend Detection Helpers
 # ------------------------------------------------------------
@@ -486,8 +491,27 @@ class _attention(torch.autograd.Function):
 triton_attention = _attention.apply
 
 # ------------------------------------------------------------
-# Flash Attention Wrapper
+# Cache Clearing Utility
 # ------------------------------------------------------------
+def clear_triton_cache():
+    cache_path = os.environ.get("TRITON_CACHE_DIR")
+    if not cache_path:
+        cache_path = str(Path.home() / ".triton" / "cache")
+
+    triton_dir = Path(cache_path)
+
+    if triton_dir.exists() and triton_dir.is_dir():
+        try:
+            shutil.rmtree(triton_dir)
+            print(f"\u2705 Successfully cleared Triton cache at: {triton_dir}")
+            return True
+        except Exception as e:
+            print(f"\u274C Failed to delete Triton cache: {str(e)}")
+            return False
+    else:
+        print(f"\u26A0\uFE0F Triton cache directory not found: {triton_dir}")
+        return False
+
 
 def prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64):
     total_tokens = batch * seqlen
@@ -509,10 +533,20 @@ def run_flash_attention_once(q, k, v, o, cu_seqlens_q, cu_seqlens_k, max_q, max_
 # ------------------------------------------------------------
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--clear-cache", action="store_true", help="Clear the Triton JIT cache before running.")
+    args = parser.parse_args()
+
     torch.manual_seed(42)
     torch.randn(1, device='cuda')  # warm-up CUDA
 
     inputs = prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64)
+
+    # First run (Cold Start), JIT warm-up
+    run_flash_attention_once(*inputs)
+
+    if args.clear_cache:
+        clear_triton_cache()
 
     print("\n=== Measuring Triton Flash Attention Kernel Startup Time ===")
 
