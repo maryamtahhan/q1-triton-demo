@@ -146,42 +146,11 @@ def _attn_fwd_inner(
             encoded_softmax_block_ptr = tl.advance(encoded_softmax_block_ptr, (0, BLOCK_N))
     return acc, l_i, m_i
 
-# ------------------------------------------------------------
-# Flash Attention Autotune Configuration Helpers
-# ------------------------------------------------------------
-def get_cuda_flash_attention_config():
-    return [
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 64, "PRE_LOAD_V": False}, num_stages=1, num_warps=8),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 128, "PRE_LOAD_V": False}, num_stages=1, num_warps=4),
-        triton.Config({"BLOCK_M": 256, "BLOCK_N": 128, "PRE_LOAD_V": False}, num_stages=1, num_warps=8),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64,  "PRE_LOAD_V": False}, num_stages=1, num_warps=4),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64,  "PRE_LOAD_V": True},  num_stages=1, num_warps=4),
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64,  "PRE_LOAD_V": False}, num_stages=1, num_warps=4),
-        triton.Config({"BLOCK_M": 64,  "BLOCK_N": 64,  "PRE_LOAD_V": False}, num_stages=1, num_warps=8),
-        triton.Config({"BLOCK_M": 32,  "BLOCK_N": 32,  "PRE_LOAD_V": False}, num_stages=1, num_warps=8),
-        triton.Config({"BLOCK_M": 16,  "BLOCK_N": 16,  "PRE_LOAD_V": False}, num_stages=1, num_warps=4),
-    ]
-
-def get_hip_flash_attention_config():
-    return [
-        triton.Config({"BLOCK_M": 128, "BLOCK_N": 64, "waves_per_eu": 2, "PRE_LOAD_V": False}, num_stages=1, num_warps=4),
-        triton.Config({"BLOCK_M": 64,  "BLOCK_N": 64, "waves_per_eu": 2, "PRE_LOAD_V": False}, num_stages=1, num_warps=4),
-        triton.Config({"BLOCK_M": 64,  "BLOCK_N": 32, "waves_per_eu": 2, "PRE_LOAD_V": False}, num_stages=1, num_warps=4),
-    ]
-
-def get_flash_attention_autotune_config():
-    if is_cuda():
-        return get_cuda_flash_attention_config()
-    else:
-        return get_hip_flash_attention_config()
 
 # ------------------------------------------------------------
 # Flash Attention Forward Kernel
 # ------------------------------------------------------------
-@triton.autotune(
-    configs=get_flash_attention_autotune_config(),
-    key=['IS_CAUSAL', 'dropout_p', 'BLOCK_DMODEL'],
-)
+
 @triton.jit
 def attn_fwd(
     Q,
@@ -453,8 +422,8 @@ class _attention(torch.autograd.Function):
         else:
             padded_d_model = head_size
 
-        grid = lambda META: (
-            triton.cdiv(max_seqlens_q, META["BLOCK_M"]),
+        grid = (
+            triton.cdiv(max_seqlens_q, 128),  # BLOCK_M
             nheads_q,
             batch,
         )
@@ -495,6 +464,9 @@ class _attention(torch.autograd.Function):
             IS_CAUSAL=causal,
             VARLEN=True,
             BLOCK_DMODEL=padded_d_model,
+            BLOCK_M=128,
+            BLOCK_N=64,
+            PRE_LOAD_V=False,
             BIAS_TYPE=0 if bias is None else 1,
             ENABLE_DROPOUT=False,
             RETURN_ENCODED_SOFTMAX=False,
@@ -514,49 +486,7 @@ class _attention(torch.autograd.Function):
 triton_attention = _attention.apply
 
 # ------------------------------------------------------------
-# Benchmark
-# ------------------------------------------------------------
-import triton.testing
-
-# Change the sequence length while keeping batch, number of heads, and head_dim fixed.
-configs = [
-    triton.testing.Benchmark(
-        x_names=["seqlen"],
-        x_vals=[64 * i for i in range(1, 9)],
-        line_arg="provider",
-        line_vals=["triton"],
-        line_names=["Triton"],
-        styles=[("blue", "-")],
-        ylabel="TFLOPS",
-        plot_name="flash_attention_performance_fp16",
-        args={"batch": 32, "nheads": 8, "head_dim": 64},
-    )
-]
-
-@triton.testing.perf_report(configs)
-def benchmark_flash_attention(seqlen, provider, batch, nheads, head_dim):
-    total_tokens = batch * seqlen
-    q = torch.randn((total_tokens, nheads, head_dim), device='cuda', dtype=torch.float16)
-    k = torch.randn((total_tokens, nheads, head_dim), device='cuda', dtype=torch.float16)
-    v = torch.randn((total_tokens, nheads, head_dim), device='cuda', dtype=torch.float16)
-    o = torch.empty_like(q, device='cuda', dtype=torch.float16)
-    cu_seqlens_q = torch.arange(0, batch + 1, device='cuda', dtype=torch.int32) * seqlen
-    cu_seqlens_k = torch.arange(0, batch + 1, device='cuda', dtype=torch.int32) * seqlen
-
-    quantiles = [0.5, 0.2, 0.8]
-    ms, min_ms, max_ms = triton.testing.do_bench(
-        lambda: triton_attention(
-            q, k, v, o, cu_seqlens_q, cu_seqlens_k, seqlen, seqlen, False, 1.0, None
-        )[0],
-        quantiles=quantiles
-    )
-
-    ops = batch * nheads * 2 * seqlen * seqlen * head_dim
-    perf = lambda ms: ops / (ms * 1e-3) / 1e12  # TFLOPS
-    return perf(ms), perf(max_ms), perf(min_ms)
-
-# ------------------------------------------------------------
-# Measure startup time
+# Flash Attention Wrapper
 # ------------------------------------------------------------
 
 def prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64):
@@ -566,8 +496,9 @@ def prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64):
     k = torch.randn((total_tokens, nheads, head_dim), device='cuda', dtype=torch.float16)
     v = torch.randn((total_tokens, nheads, head_dim), device='cuda', dtype=torch.float16)
     o = torch.empty_like(q)
-    cu_seqlens = torch.arange(0, batch + 1, device='cuda', dtype=torch.int32) * seqlen
-    return q, k, v, o, cu_seqlens, cu_seqlens, seqlen, seqlen
+    cu_seqlens_q = torch.arange(0, batch + 1, device='cuda', dtype=torch.int32) * seqlen
+    cu_seqlens_k = torch.arange(0, batch + 1, device='cuda', dtype=torch.int32) * seqlen
+    return q, k, v, o, cu_seqlens_q, cu_seqlens_k, seqlen, seqlen
 
 def run_flash_attention_once(q, k, v, o, cu_seqlens_q, cu_seqlens_k, max_q, max_k):
     triton_attention(q, k, v, o, cu_seqlens_q, cu_seqlens_k, max_q, max_k, False, 1.0, None)
@@ -576,27 +507,17 @@ def run_flash_attention_once(q, k, v, o, cu_seqlens_q, cu_seqlens_k, max_q, max_
 # ------------------------------------------------------------
 # Measure Cold Start vs Warm Start
 # ------------------------------------------------------------
+
 if __name__ == "__main__":
     torch.manual_seed(42)
     torch.randn(1, device='cuda')  # warm-up CUDA
 
-    # Prepare fixed inputs
-    inputs = prepare_inputs()
+    inputs = prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64)
 
     print("\n=== Measuring Triton Flash Attention Kernel Startup Time ===")
 
-    # First run (Cold Start)
     start = time.time()
     run_flash_attention_once(*inputs)
-    elapsed_cold = time.time() - start
-    print(f"[Cold Start] Triton kernel first run took {elapsed_cold:.6f} seconds")
-
-    # Second run (Warm Start)
-    start = time.time()
-    run_flash_attention_once(*inputs)
-    elapsed_cached = time.time() - start
-    print(f"[Warm Start] Triton kernel cached run took {elapsed_cached:.6f} seconds")
-
-    print(f"Speedup from caching: {elapsed_cold / elapsed_cached:.2f}x faster")
-
+    elapsed_first = time.time() - start
+    print(f"[Measured Run] Triton kernel run took {elapsed_first:.6f} seconds")
 
