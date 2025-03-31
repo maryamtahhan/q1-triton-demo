@@ -501,16 +501,27 @@ def clear_triton_cache():
     triton_dir = Path(cache_path)
 
     if triton_dir.exists() and triton_dir.is_dir():
+        print(f"📁 Triton cache contents before deletion:")
+        for path in triton_dir.rglob("*"):
+            print(f" - {path}")
+
         try:
             shutil.rmtree(triton_dir)
             print(f"Successfully cleared Triton cache at: {triton_dir}")
-            return True
         except Exception as e:
             print(f"Failed to delete Triton cache: {str(e)}")
             return False
     else:
         print(f"Triton cache directory not found: {triton_dir}")
+
+    # Check again if it’s really gone
+    if triton_dir.exists():
+        print(f"Cache directory still exists after attempted deletion!")
         return False
+    else:
+        print(f"Verified: Triton cache directory is gone.")
+        return True
+
 
 
 def prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64):
