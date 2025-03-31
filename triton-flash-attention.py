@@ -503,13 +503,13 @@ def clear_triton_cache():
     if triton_dir.exists() and triton_dir.is_dir():
         try:
             shutil.rmtree(triton_dir)
-            print(f"\u2705 Successfully cleared Triton cache at: {triton_dir}")
+            print(f"Successfully cleared Triton cache at: {triton_dir}")
             return True
         except Exception as e:
-            print(f"\u274C Failed to delete Triton cache: {str(e)}")
+            print(f"Failed to delete Triton cache: {str(e)}")
             return False
     else:
-        print(f"\u26A0\uFE0F Triton cache directory not found: {triton_dir}")
+        print(f"Triton cache directory not found: {triton_dir}")
         return False
 
 
@@ -534,6 +534,7 @@ def run_flash_attention_once(q, k, v, o, cu_seqlens_q, cu_seqlens_k, max_q, max_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.set_defaults(clear_cache=False)
     parser.add_argument("--clear-cache", action="store_true", help="Clear the Triton JIT cache before running.")
     args = parser.parse_args()
 
@@ -542,7 +543,7 @@ if __name__ == "__main__":
 
     inputs = prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64)
 
-    # First run (Cold Start), JIT warm-up
+    # JIT warm-up
     run_flash_attention_once(*inputs)
 
     if args.clear_cache:

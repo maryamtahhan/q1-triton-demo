@@ -13,8 +13,14 @@ spec:
       env:
         - name: HIP_VISIBLE_DEVICES
           value: "0"
+        - name: HOME
+          value: "/workspace"
+        - name: TRITON_CACHE_DIR
+          value: "/workspace/.triton/cache"
+        - name: TRITON_HOME
+          value: "/workspace/"
       command: ["/bin/bash", "-c"]
-      args: ["/entrypoint.sh && python /workspace/triton-flash-attention.py && tail -f /dev/null"]
+      args: ["/entrypoint.sh && python /workspace/triton-flash-attention.py --clear-cache && tail -f /dev/null"]
       securityContext:
         privileged: true
       resources:
