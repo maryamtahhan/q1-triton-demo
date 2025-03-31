@@ -501,7 +501,7 @@ def clear_triton_cache():
     triton_dir = Path(cache_path)
 
     if triton_dir.exists() and triton_dir.is_dir():
-        print(f"📁 Triton cache contents before deletion:")
+        print(f"Triton cache contents before deletion:")
         for path in triton_dir.rglob("*"):
             print(f" - {path}")
 
@@ -521,8 +521,6 @@ def clear_triton_cache():
     else:
         print(f"Verified: Triton cache directory is gone.")
         return True
-
-
 
 def prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64):
     total_tokens = batch * seqlen
@@ -545,9 +543,8 @@ def run_flash_attention_once(q, k, v, o, cu_seqlens_q, cu_seqlens_k, max_q, max_
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.set_defaults(clear_cache=False, jit_warmup=False)
+    parser.set_defaults(clear_cache=False)
     parser.add_argument("--clear-cache", action="store_true", help="Clear the Triton JIT cache before running.")
-    parser.add_argument("--jit-warmup", action="store_true", help="Run a JIT warm-up before timing.")
 
     args = parser.parse_args()
 
@@ -556,14 +553,16 @@ if __name__ == "__main__":
 
     inputs = prepare_inputs(batch=8, nheads=4, seqlen=128, head_dim=64)
 
-    if args.jit_warmup:
-        print("Running JIT warm-up...")
-        run_flash_attention_once(*inputs)
+    print("\n=== Measuring TRUE cold start (includes JIT compile)...===")
+    start = time.time()
+    run_flash_attention_once(*inputs)
+    elapsed_cold = time.time() - start
+    print(f"[Cold Start] Triton kernel took {elapsed_cold:.6f} seconds")
 
     if args.clear_cache:
         clear_triton_cache()
 
-    print("\n=== Measuring Triton Flash Attention Kernel Startup Time ===")
+    print("\n=== Measuring Triton Flash Attention Kernel Startup Time after JIT warmup===")
     start = time.time()
     run_flash_attention_once(*inputs)
     elapsed_first = time.time() - start

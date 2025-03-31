@@ -5,7 +5,7 @@ metadata:
   labels:
     purpose: demo-triton
 spec:
-  restartPolicy: Never  # <-- moved here!
+  restartPolicy: Never
   containers:
     - name: triton-container
       image: quay.io/mtahhan/rocm-demo:latest
