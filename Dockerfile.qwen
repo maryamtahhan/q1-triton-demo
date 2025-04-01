@@ -1,0 +1,33 @@
+FROM rocm/vllm-dev:main
+
+# Install basic development tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional dependencies
+RUN pip3 install --no-cache-dir \
+    transformers \
+    accelerate \
+    safetensors
+
+# Create non-root user for security
+RUN useradd -m -u 2000 vllm
+WORKDIR /app
+RUN chown vllm:vllm /app
+
+# Create directories for models and benchmarks
+RUN mkdir -p /data/benchmarks && \
+   chmod 777 /data/benchmarks
+
+# Switch to non-root user
+USER vllm
+
+# Make our entrypoint script executable
+COPY --chown=vllm:vllm entrypoint-qwen.sh .
+RUN chmod +x entrypoint-qwen.sh
+
+ENTRYPOINT ["./entrypoint-qwen.sh"]
+
+# https://rocm.blogs.amd.com/software-tools-optimization/vllm-container/README.html
+# [ podman | docker ]  build -t quay.io/mtahhan/qwen-demo -f Dockerfile.qwen .

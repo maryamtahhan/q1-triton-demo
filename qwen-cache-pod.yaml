@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: qwen-rocm-cache-pod
+spec:
+  restartPolicy: Never
+  volumes:
+    - name: triton-cache-volume
+      emptyDir: {}
+
+  initContainers:
+    - name: thunderbolt-init
+      image: quay.io/mtahhan/thunderbolt
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -e
+          apt-get update && apt-get install -y --no-install-recommends \
+            wget gnupg2 ca-certificates curl lsb-release software-properties-common python3-setuptools python3-wheel
+
+          echo "Installing ROCm apt repo..."
+          wget https://repo.radeon.com/amdgpu-install/6.3.3/ubuntu/jammy/amdgpu-install_6.3.60303-1_all.deb
+          apt-get install -y ./amdgpu-install_6.3.60303-1_all.deb
+          amdgpu-install --usecase=rocm --no-dkms -y
+
+          echo "Running thunderbolt..."
+          /thunderbolt -e -i quay.io/mtahhan/qwen-rocm-cache:latest
+
+          echo "Extracted cache in /home/vllm/.triton/cache..."
+          ls -al /home/vllm/.triton/cache
+      env:
+        - name: TRITON_CACHE_DIR
+          value: "/home/vllm/.triton/cache"
+        - name: TRITON_HOME
+          value: "/home/vllm/.triton"
+        - name: HIP_VISIBLE_DEVICES
+          value: "0"
+        - name: HOME
+          value: "/home/vllm"
+      volumeMounts:
+        - name: triton-cache-volume
+          mountPath: /home/vllm/.triton/cache
+      securityContext:
+        privileged: false
+        capabilities:
+          add:
+            - SYS_ADMIN
+        seccompProfile:
+          type: Unconfined
+      resources:
+        limits:
+          amd.com/gpu: 1
+
+  containers:
+    - name: qwen-container
+      image: quay.io/mtahhan/qwen-demo:latest
+      ports:
+        - containerPort: 8000
+      env:
+        - name: TRITON_CACHE_DIR
+          value: "/home/vllm/.triton/cache"
+        - name: HOME
+          value: "/home/vllm"
+        - name: HIP_VISIBLE_DEVICES
+          value: "0"
+        - name: MODEL
+          value: "Qwen/Qwen1.5-0.5B"
+      volumeMounts:
+        - name: triton-cache-volume
+          mountPath: /home/vllm/.triton/cache
+      resources:
+        limits:
+          amd.com/gpu: 1
+      securityContext:
+        privileged: true
