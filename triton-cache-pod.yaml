@@ -17,14 +17,6 @@ spec:
       args:
         - |
           set -e
-          apt-get update && apt-get install -y --no-install-recommends \
-            wget gnupg2 ca-certificates curl lsb-release software-properties-common python3-setuptools python3-wheel
-
-          echo "Installing ROCm apt repo..."
-          wget https://repo.radeon.com/amdgpu-install/6.3.3/ubuntu/jammy/amdgpu-install_6.3.60303-1_all.deb
-          apt-get install -y ./amdgpu-install_6.3.60303-1_all.deb
-          amdgpu-install --usecase=rocm --no-dkms -y
-
           echo "Running thunderbolt..."
           /thunderbolt -e -i quay.io/mtahhan/flash-attention-rocm:latest
 
