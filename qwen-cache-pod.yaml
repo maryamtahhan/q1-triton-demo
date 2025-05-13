@@ -9,29 +9,26 @@ spec:
       emptyDir: {}
 
   initContainers:
-    - name: thunderbolt-init
-      image: quay.io/mtahhan/thunderbolt
+    - name: tcv-init
+      image: quay.io/mtahhan/tcv:latest
+      imagePullPolicy: IfNotPresent
       command: ["/bin/bash", "-c"]
       args:
         - |
           set -e
-          echo "Running thunderbolt..."
-          /thunderbolt -e -i quay.io/mtahhan/qwen-rocm-cache:latest
+          echo "Running Triton Cache Vault (TCV)..."
+          /tcv -e -i quay.io/mtahhan/qwen-rocm-cache:latest -d /home/vllm/.cache/vllm/
 
-          echo "Extracted cache in /home/vllm/.triton/cache..."
-          ls -al /home/vllm/.triton/cache
+          echo "Extracted cache in /home/vllm/.cache/vllm/..."
+          ls -al /home/vllm/.cache/vllm/
       env:
-        - name: TRITON_CACHE_DIR
-          value: "/home/vllm/.triton/cache"
-        - name: TRITON_HOME
-          value: "/home/vllm/.triton"
         - name: HIP_VISIBLE_DEVICES
           value: "0"
         - name: HOME
           value: "/home/vllm"
       volumeMounts:
         - name: triton-cache-volume
-          mountPath: /home/vllm/.triton/cache
+          mountPath: /home/vllm/.cache/vllm/
       securityContext:
         privileged: false
         capabilities:
@@ -49,17 +46,21 @@ spec:
       ports:
         - containerPort: 8000
       env:
-        - name: TRITON_CACHE_DIR
-          value: "/home/vllm/.triton/cache"
         - name: HOME
           value: "/home/vllm"
         - name: HIP_VISIBLE_DEVICES
           value: "0"
         - name: MODEL
           value: "Qwen/Qwen1.5-0.5B"
+        - name: VLLM_USE_COMPILED_ATTENTION
+          value: "1"
+        - name: VLLM_COMPILED_ATTENTION_BACKEND
+          value: "1"
+        - name:  VLLM_USE_V1
+          value: "1"
       volumeMounts:
         - name: triton-cache-volume
-          mountPath: /home/vllm/.triton/cache
+          mountPath: /home/vllm/.cache/vllm/
       resources:
         limits:
           amd.com/gpu: 1

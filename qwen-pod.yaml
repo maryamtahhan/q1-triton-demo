@@ -16,9 +16,15 @@ spec:
           value: "8000"
         - name: MODE
           value: "serve"
+        - name: VLLM_USE_COMPILED_ATTENTION
+          value: "1"
+        - name: VLLM_COMPILED_ATTENTION_BACKEND
+          value: "1"
+        - name:  VLLM_USE_V1
+          value: "1"
       resources:
         limits:
-          amd.com/gpu: 1  # Assumes AMD GPU resource name is amd.com/gpu
+          amd.com/gpu: 1
       securityContext:
         privileged: true
   restartPolicy: Never
