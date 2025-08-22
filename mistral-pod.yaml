@@ -1,0 +1,47 @@
+##### NOTE: system runs out of memory
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mistral-rocm-pod
+spec:
+  containers:
+    - name: mistral-container
+      image: quay.io/mtahhan/qwen-demo:latest
+      command: ["./entrypoint-qwen.sh"]
+      ports:
+        - containerPort: 8000
+      env:
+        - name: MODEL
+          value: "RedHatAI/Mistral-Small-3.1-24B-Instruct-2503"
+        - name: PORT
+          value: "8000"
+        - name: MODE
+          value: "serve"
+        - name: VLLM_USE_COMPILED_ATTENTION
+          value: "1"
+        - name: VLLM_COMPILED_ATTENTION_BACKEND
+          value: "1"
+        - name:  VLLM_USE_V1
+          value: "1"
+        - name: VLLM_USE_TRITON_FLASH_ATTN
+          value: "0"
+        - name:  HUGGING_FACE_HUB_TOKEN
+          value: "XXX" #### TODO Populate before starting pod.
+        - name:  EXTRA_ARGS
+          value: "--tokenizer_mode mistral --config_format mistral --load_format mistral --tool-call-parser mistral --enable-auto-tool-choice --tensor-parallel-size 2 --disable-multimodal"
+      volumeMounts:
+        - name: hf-cache
+          mountPath: /root/.cache/huggingface
+      resources:
+        limits:
+          amd.com/gpu: 1
+          ephemeral-storage: "40Gi"
+        requests:
+          ephemeral-storage: "20Gi"
+      securityContext:
+        privileged: true
+  restartPolicy: Never
+  volumes:
+    - name: hf-cache
+      emptyDir:
+        sizeLimit: 30Gi

@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: qwen-rocm-pod
+  name: deepseek-rocm-pod
 spec:
   containers:
-    - name: qwen-container
+    - name: deepseek-container
       image: quay.io/mtahhan/qwen-demo:latest
       imagePullPolicy: IfNotPresent
       command: ["./entrypoint-qwen.sh"]
@@ -12,7 +12,7 @@ spec:
         - containerPort: 8000
       env:
         - name: MODEL
-          value: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+          value: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
         - name: PORT
           value: "8000"
         - name: MODE
@@ -25,8 +25,6 @@ spec:
           value: "1"
         - name:  HUGGING_FACE_HUB_TOKEN
           value: "XXX"
-        # - name: EXTRA_ARGS
-        #   value: "--tensor-parallel-size 2 --max-model-len 8192 --dtype float16"
       resources:
         limits:
           amd.com/gpu: 1

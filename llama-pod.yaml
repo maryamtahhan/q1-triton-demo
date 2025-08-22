@@ -1,18 +1,17 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: qwen-rocm-pod
+  name: llama-rocm-pod
 spec:
   containers:
-    - name: qwen-container
+    - name: llama-container
       image: quay.io/mtahhan/qwen-demo:latest
-      imagePullPolicy: IfNotPresent
       command: ["./entrypoint-qwen.sh"]
       ports:
         - containerPort: 8000
       env:
         - name: MODEL
-          value: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+          value: "RedHatAI/Llama-3.1-8B-Instruct"
         - name: PORT
           value: "8000"
         - name: MODE
@@ -24,9 +23,7 @@ spec:
         - name:  VLLM_USE_V1
           value: "1"
         - name:  HUGGING_FACE_HUB_TOKEN
-          value: "XXX"
-        # - name: EXTRA_ARGS
-        #   value: "--tensor-parallel-size 2 --max-model-len 8192 --dtype float16"
+          value: "XXX" #### TODO Populate before starting pod.
       resources:
         limits:
           amd.com/gpu: 1
